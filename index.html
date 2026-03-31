@@ -168,7 +168,7 @@
         try {
           const resp = await fetch(CONFIG.BACKEND_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({ action: 'ESTABLISH_SESSION', initData: tg.initData }),
           });
           const data = await resp.json();
@@ -211,7 +211,7 @@
       try {
         const resp = await fetch(CONFIG.BACKEND_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain' },
           body: JSON.stringify({
             action: 'EMERGENCY_STOP',
             sessionToken: sessionToken,
