@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>J Emergency</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--tg-theme-bg-color, #1a1a2e);
+      color: var(--tg-theme-text-color, #e0e0e0);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .container {
+      text-align: center;
+      max-width: 340px;
+      width: 100%;
+    }
+    .icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: rgba(255, 82, 82, 0.15);
+      border: 2px solid rgba(255, 82, 82, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+      font-size: 36px;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #ff5252;
+    }
+    .subtitle {
+      font-size: 14px;
+      color: var(--tg-theme-hint-color, #8a8a9e);
+      line-height: 1.5;
+      margin-bottom: 32px;
+    }
+    .actions-list {
+      text-align: left;
+      background: rgba(255, 82, 82, 0.06);
+      border: 1px solid rgba(255, 82, 82, 0.15);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 32px;
+      font-size: 13px;
+      line-height: 2;
+      color: var(--tg-theme-hint-color, #8a8a9e);
+    }
+    .stop-btn {
+      width: 100%;
+      padding: 18px;
+      border: none;
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      cursor: pointer;
+      background: #ff5252;
+      color: #fff;
+      transition: all 0.2s;
+    }
+    .stop-btn:active { transform: scale(0.97); }
+    .stop-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .stop-btn.processing { opacity: 0.7; }
+    .result {
+      margin-top: 24px;
+      padding: 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.6;
+      display: none;
+    }
+    .result.success { background: rgba(0, 230, 118, 0.1); border: 1px solid rgba(0, 230, 118, 0.3); color: #00e676; }
+    .result.error { background: rgba(255, 82, 82, 0.1); border: 1px solid rgba(255, 82, 82, 0.3); color: #ff5252; }
+    .confirm-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 100;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .confirm-overlay.visible { display: flex; }
+    .confirm-box {
+      background: var(--tg-theme-bg-color, #1a1a2e);
+      border: 2px solid #ff5252;
+      border-radius: 16px;
+      padding: 28px 24px;
+      text-align: center;
+      max-width: 320px;
+      width: 100%;
+    }
+    .confirm-box h2 { color: #ff5252; font-size: 18px; margin-bottom: 12px; }
+    .confirm-box p { font-size: 13px; color: var(--tg-theme-hint-color, #8a8a9e); margin-bottom: 24px; line-height: 1.5; }
+    .confirm-buttons { display: flex; gap: 12px; }
+    .confirm-buttons button {
+      flex: 1; padding: 14px; border-radius: 10px; font-size: 15px;
+      font-weight: 700; cursor: pointer; font-family: inherit; border: none;
+    }
+    .btn-cancel { background: rgba(255,255,255,0.08); color: var(--tg-theme-text-color, #e0e0e0); }
+    .btn-confirm-final { background: #ff5252; color: #fff; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="icon">!</div>
+    <h1>EMERGENCY STOP</h1>
+    <p class="subtitle">Closes all open positions, cancels all pending trades, halts all JOSHUA automation.</p>
+
+    <div class="actions-list">
+      This will:<br>
+      — Close all open positions at market<br>
+      — Cancel all queued and pending trades<br>
+      — Set SYSTEM_HALT = TRUE<br>
+      — Delete all automated triggers<br>
+      — Require manual restart
+    </div>
+
+    <button class="stop-btn" id="stopBtn" onclick="initiateStop()">
+      EMERGENCY STOP
+    </button>
+
+    <div class="result" id="result"></div>
+  </div>
+
+  <div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-box">
+      <h2>Are you sure?</h2>
+      <p>This will close ALL positions and halt ALL automation. This action cannot be undone automatically. You will need to manually restart the system.</p>
+      <div class="confirm-buttons">
+        <button class="btn-cancel" onclick="cancelStop()">Cancel</button>
+        <button class="btn-confirm-final" onclick="executeStop()">CONFIRM STOP</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const CONFIG = {
+      BACKEND_URL: 'YOUR_APPS_SCRIPT_WEB_APP_URL_HERE',
+    };
+
+    const tg = window.Telegram?.WebApp;
+    let sessionToken = null;
+
+    async function init() {
+      if (tg) {
+        tg.ready();
+        tg.expand();
+        if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+
+        // Establish session
+        try {
+          const resp = await fetch(CONFIG.BACKEND_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'ESTABLISH_SESSION', initData: tg.initData }),
+          });
+          const data = await resp.json();
+          sessionToken = data.session_token;
+        } catch (err) {
+          showResult('Session failed: ' + err.message, 'error');
+        }
+      }
+    }
+
+    function initiateStop() {
+      document.getElementById('confirmOverlay').classList.add('visible');
+      if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('heavy');
+    }
+
+    function cancelStop() {
+      document.getElementById('confirmOverlay').classList.remove('visible');
+    }
+
+    async function executeStop() {
+      document.getElementById('confirmOverlay').classList.remove('visible');
+      const btn = document.getElementById('stopBtn');
+      btn.disabled = true;
+      btn.classList.add('processing');
+      btn.textContent = 'Authenticating...';
+
+      // Biometric gate
+      const bioOk = await requestBiometric();
+      if (!bioOk) {
+        btn.disabled = false;
+        btn.classList.remove('processing');
+        btn.textContent = 'EMERGENCY STOP';
+        showResult('Biometric authentication required', 'error');
+        return;
+      }
+
+      btn.textContent = 'Executing emergency stop...';
+      if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('warning');
+
+      try {
+        const resp = await fetch(CONFIG.BACKEND_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'EMERGENCY_STOP',
+            sessionToken: sessionToken,
+          }),
+        });
+        const data = await resp.json();
+
+        if (data.success) {
+          if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+          btn.textContent = 'SYSTEM HALTED';
+          btn.style.background = '#333';
+          showResult(
+            'Positions closed: ' + data.closed +
+            '\nFailures: ' + data.failed +
+            '\nQueued cancelled: ' + data.cancelled +
+            '\n\nAll triggers deleted. Manual restart required.',
+            'success'
+          );
+        } else {
+          throw new Error(data.error || 'Unknown error');
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btn.classList.remove('processing');
+        btn.textContent = 'EMERGENCY STOP';
+        showResult('Error: ' + err.message + '\n\nTry setting SYSTEM_HALT=TRUE manually in Config tab.', 'error');
+      }
+    }
+
+    function requestBiometric() {
+      return new Promise(resolve => {
+        if (!tg?.BiometricManager) { resolve(true); return; }
+        tg.BiometricManager.init(() => {
+          if (!tg.BiometricManager.isBiometricAvailable) { resolve(true); return; }
+          tg.BiometricManager.authenticate({ reason: 'Confirm emergency stop' }, resolve);
+        });
+      });
+    }
+
+    function showResult(msg, type) {
+      const el = document.getElementById('result');
+      el.textContent = msg;
+      el.className = 'result ' + type;
+      el.style.display = 'block';
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
