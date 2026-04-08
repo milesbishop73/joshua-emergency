@@ -169,7 +169,7 @@
           const resp = await fetch(CONFIG.BACKEND_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'ESTABLISH_SESSION', initData: tg.initData }),
+            body: JSON.stringify({ action: 'ESTABLISH_SESSION', initData: tg.initData, source: 'emergency' }),
           });
           const data = await resp.json();
           sessionToken = data.session_token;
