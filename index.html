@@ -177,6 +177,10 @@
           showResult('Session failed: ' + err.message, 'error');
         }
       }
+      // Pre-init BiometricManager
+            if (tg?.BiometricManager) {
+              tg.BiometricManager.init(() => {});
+      }     
     }
 
     function initiateStop() {
@@ -243,11 +247,23 @@
 
     function requestBiometric() {
       return new Promise(resolve => {
-        if (!tg?.BiometricManager) { resolve(true); return; }
-        tg.BiometricManager.init(() => {
-          if (!tg.BiometricManager.isBiometricAvailable) { resolve(true); return; }
-          tg.BiometricManager.authenticate({ reason: 'Confirm emergency stop' }, resolve);
-        });
+        if (!tg?.BiometricManager) { resolve(false); return; }
+        const timeout = setTimeout(() => { resolve(false); }, 10000);
+        try {
+          if (!tg.BiometricManager.isBiometricAvailable) { clearTimeout(timeout); resolve(false); return; }
+          if (tg.BiometricManager.isAccessGranted) {
+            tg.BiometricManager.authenticate({ reason: 'Confirm emergency stop' }, (success) => {
+              clearTimeout(timeout); resolve(success);
+            });
+          } else {
+            tg.BiometricManager.requestAccess({ reason: 'JOSHUA requires Face ID for emergency actions' }, (granted) => {
+              if (!granted) { clearTimeout(timeout); resolve(false); return; }
+              tg.BiometricManager.authenticate({ reason: 'Confirm emergency stop' }, (success) => {
+                clearTimeout(timeout); resolve(success);
+              });
+            });
+          }
+        } catch (e) { clearTimeout(timeout); resolve(false); }
       });
     }
 
